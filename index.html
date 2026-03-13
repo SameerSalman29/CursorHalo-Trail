@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Halo Trail Showcase</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+
+:root{
+  --bg:#05070d;
+  --bg-soft:#0b1020;
+  --grid:rgba(255,255,255,0.045);
+  --text:rgba(232,238,255,0.8);
+  --text-soft:rgba(185,194,222,0.52);
+  --halo-core:109,124,255;
+  --trail-a:109,124,255;
+  --trail-b:140,154,255;
+  --trail-c:176,195,255;
+}
+
+html,body{
+  width:100%;
+  height:100%;
+}
+
+body{
+  overflow:hidden;
+  background:
+    radial-gradient(circle at 18% 18%, rgba(109,124,255,0.14), transparent 28%),
+    radial-gradient(circle at 78% 72%, rgba(176,195,255,0.08), transparent 32%),
+    linear-gradient(180deg, var(--bg-soft) 0%, var(--bg) 100%);
+  color:var(--text);
+  font-family:Segoe UI, Arial, sans-serif;
+  position:relative;
+}
+
+body::before,
+body::after{
+  content:"";
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+}
+
+body::before{
+  background-image:
+    linear-gradient(to right, var(--grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+  background-size:40px 40px;
+  opacity:0.28;
+}
+
+body::after{
+  background:radial-gradient(circle at center, transparent 0%, rgba(5,7,13,0.2) 46%, rgba(5,7,13,0.78) 100%);
+}
+
+#blob-canvas{
+  position:fixed;
+  inset:0;
+  width:100%;
+  height:100%;
+  pointer-events:none;
+}
+
+.goo-svg{
+  position:absolute;
+  width:0;
+  height:0;
+}
+
+.cursor-fx{
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+}
+
+.blob-layer{
+  position:absolute;
+  inset:0;
+  filter:url(#goo-filter);
+}
+
+.blob{
+  position:absolute;
+  top:0;
+  left:0;
+  width:30px;
+  height:30px;
+  border-radius:50%;
+  background:rgba(var(--trail-a),0.56);
+}
+
+.blob:nth-child(2n){
+  background:rgba(var(--trail-b),0.58);
+}
+
+.blob:nth-child(3n){
+  background:rgba(var(--trail-c),0.5);
+}
+
+.cursor-diamond{
+  position:absolute;
+  width:14px;
+  height:14px;
+  border:1px solid rgba(255,255,255,0.82);
+  transform:translate(-50%,-50%) rotate(45deg);
+  box-shadow:0 0 18px rgba(178,198,255,0.42);
+}
+
+.hint{
+  position:fixed;
+  left:50%;
+  bottom:28px;
+  transform:translateX(-50%);
+  padding:10px 14px;
+  border:1px solid rgba(176,195,255,0.18);
+  background:rgba(10,14,25,0.36);
+  backdrop-filter:blur(10px);
+  color:var(--text-soft);
+  font-size:12px;
+  letter-spacing:0.22em;
+  text-transform:uppercase;
+  white-space:nowrap;
+  user-select:none;
+}
+
+@media (max-width:760px){
+  .cursor-fx,
+  .hint{
+    display:none;
+  }
+}
+</style>
+</head>
+<body>
+<canvas id="blob-canvas"></canvas>
+
+<svg class="goo-svg" aria-hidden="true">
+  <filter id="goo-filter">
+    <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur"></feGaussianBlur>
+    <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 24 -10" result="goo"></feColorMatrix>
+    <feBlend in="SourceGraphic" in2="goo"></feBlend>
+  </filter>
+</svg>
+
+<div id="cursorFX" class="cursor-fx" aria-hidden="true">
+  <div id="blobLayer" class="blob-layer">
+    <span class="blob"></span>
+    <span class="blob"></span>
+    <span class="blob"></span>
+    <span class="blob"></span>
+    <span class="blob"></span>
+    <span class="blob"></span>
+  </div>
+  <span id="cursorDiamond" class="cursor-diamond"></span>
+</div>
+
+<div class="hint">Move cursor. Click for pulse.</div>
+
+<script>
+const canvas=document.getElementById("blob-canvas");
+const ctx=canvas.getContext("2d");
+let canvasWidth;
+let canvasHeight;
+
+function resizeCanvas(){
+  canvasWidth=canvas.width=window.innerWidth;
+  canvasHeight=canvas.height=window.innerHeight;
+}
+
+window.addEventListener("resize",resizeCanvas);
+resizeCanvas();
+
+const pointer={x:canvasWidth/2,y:canvasHeight/2};
+const halo={x:canvasWidth/2,y:canvasHeight/2,vx:0,vy:0};
+const baseRadius=100;
+let clickEnergy=0;
+const ripples=[];
+
+window.addEventListener("mousemove",event=>{
+  pointer.x=event.clientX;
+  pointer.y=event.clientY;
+});
+
+window.addEventListener("pointerdown",event=>{
+  pointer.x=event.clientX;
+  pointer.y=event.clientY;
+  triggerHaloPulse(event.clientX,event.clientY);
+});
+
+function triggerHaloPulse(x,y){
+  clickEnergy=Math.min(1.8,clickEnergy+1);
+  halo.vx += (x-halo.x)*0.03;
+  halo.vy += (y-halo.y)*0.03;
+  ripples.push({x,y,r:10,alpha:0.42,line:2.6});
+}
+
+function drawHalo(){
+  halo.vx += (pointer.x-halo.x)*0.1;
+  halo.vy += (pointer.y-halo.y)*0.1;
+  halo.vx *= 0.8;
+  halo.vy *= 0.8;
+  halo.x += halo.vx;
+  halo.y += halo.vy;
+
+  clickEnergy *= 0.9;
+  const radius=baseRadius+clickEnergy*34;
+  const coreAlpha=Math.min(0.58,0.35+clickEnergy*0.18);
+
+  ctx.clearRect(0,0,canvasWidth,canvasHeight);
+  const gradient=ctx.createRadialGradient(halo.x,halo.y,0,halo.x,halo.y,radius);
+  gradient.addColorStop(0,`rgba(${getComputedStyle(document.documentElement).getPropertyValue("--halo-core")},${coreAlpha})`);
+  gradient.addColorStop(1,"rgba(109,124,255,0)");
+
+  ctx.fillStyle=gradient;
+  ctx.beginPath();
+  ctx.arc(halo.x,halo.y,radius,0,Math.PI*2);
+  ctx.fill();
+
+  for(let index=ripples.length-1;index>=0;index--){
+    const ripple=ripples[index];
+    ripple.r += 7.5;
+    ripple.alpha *= 0.92;
+    ripple.line *= 0.985;
+
+    ctx.strokeStyle=`rgba(176,195,255,${ripple.alpha})`;
+    ctx.lineWidth=ripple.line;
+    ctx.beginPath();
+    ctx.arc(ripple.x,ripple.y,ripple.r,0,Math.PI*2);
+    ctx.stroke();
+
+    if(ripple.alpha<0.02){
+      ripples.splice(index,1);
+    }
+  }
+
+  requestAnimationFrame(drawHalo);
+}
+
+drawHalo();
+
+function initLiquidCursor(){
+  const cursorFX=document.getElementById("cursorFX");
+  const blobLayer=document.getElementById("blobLayer");
+  const cursorDiamond=document.getElementById("cursorDiamond");
+  const coarsePointer=window.matchMedia("(pointer: coarse)").matches;
+  const reducedMotion=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  if(coarsePointer || reducedMotion){
+    cursorFX.style.display="none";
+    return;
+  }
+
+  const blobs=[...blobLayer.querySelectorAll(".blob")];
+  const points=blobs.map(()=>({x:window.innerWidth/2,y:window.innerHeight/2}));
+  const target={x:window.innerWidth/2,y:window.innerHeight/2};
+
+  window.addEventListener("pointermove",event=>{
+    target.x=event.clientX;
+    target.y=event.clientY;
+  });
+
+  window.addEventListener("pointerleave",()=>{
+    target.x=window.innerWidth/2;
+    target.y=window.innerHeight/2;
+  });
+
+  function animateCursor(){
+    points.forEach((point,index)=>{
+      const leader=index===0?target:points[index-1];
+      const strength=Math.max(0.11,0.29-index*0.03);
+
+      point.x += (leader.x-point.x)*strength;
+      point.y += (leader.y-point.y)*strength;
+
+      const scale=1-index*0.08;
+      blobs[index].style.transform=`translate(${point.x-15}px, ${point.y-15}px) scale(${scale})`;
+    });
+
+    cursorDiamond.style.transform=`translate(${target.x}px, ${target.y}px) translate(-50%, -50%) rotate(45deg)`;
+    requestAnimationFrame(animateCursor);
+  }
+
+  animateCursor();
+}
+
+initLiquidCursor();
+</script>
+</body>
+</html>
